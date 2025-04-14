@@ -43,4 +43,4 @@ def delete_file_later(file_path):
         print(f"Error deleting file: {e}")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
