@@ -15,7 +15,7 @@ def sanitize_filename(filename, max_length=80):
         filename = filename[:max_length].rstrip()
     return filename
 
-def download_video(url, output_format='mp4', output_dir='downloads', cookies_path=r"c:\coding\cookies\x_cokies.txt"):
+def download_video(url, output_format='mp4', output_dir='downloads', cookies_path=None):
     create_folder(output_dir)
 
     # ตั้งค่า output template
@@ -32,8 +32,8 @@ def download_video(url, output_format='mp4', output_dir='downloads', cookies_pat
     }
 
     # 🔐 ถ้ามี cookies.txt ให้เพิ่มเข้าไป
-    if cookies_path and os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
+    if cookies_path is None:
+        cookies_path = os.environ.get("COOKIES_PATH", "cookies/cookies.txt")
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
