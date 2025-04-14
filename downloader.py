@@ -1,9 +1,9 @@
 from yt_dlp import YoutubeDL
 import os
 import re  # ใช้สำหรับลบอักขระพิเศษ
-import browser_cookie3  # ใช้ดึงคุกกี้จากเบราว์เซอร์
 import tempfile
 import logging
+import json
 
 # ตั้งค่า logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,48 +22,9 @@ def sanitize_filename(filename, max_length=80):
         filename = filename[:max_length].rstrip()
     return filename
 
-def get_browser_cookies():
-    """ดึงคุกกี้จากเบราว์เซอร์ทั้งหมดที่มีและสร้างไฟล์คุกกี้ชั่วคราว"""
-    cookies_file = tempfile.mktemp('.txt')
-    
-    try:
-        # ลองดึงคุกกี้จากเบราว์เซอร์ต่างๆ
-        all_cookies = []
-        
-        for browser_name, browser_func in [
-            ("Chrome", browser_cookie3.chrome),
-            ("Firefox", browser_cookie3.firefox),
-            ("Edge", browser_cookie3.edge),
-            ("Opera", browser_cookie3.opera),
-            ("Safari", browser_cookie3.safari)
-        ]:
-            try:
-                cookies = list(browser_func())
-                all_cookies.extend(cookies)
-                logger.info(f"พบคุกกี้จาก {browser_name} ({len(cookies)} คุกกี้)")
-            except Exception as e:
-                logger.debug(f"ไม่สามารถดึงคุกกี้จาก {browser_name}: {str(e)}")
-        
-        if not all_cookies:
-            logger.warning("ไม่พบคุกกี้จากเบราว์เซอร์ใดๆ")
-            return None
-        
-        # แปลงคุกกี้เป็นรูปแบบที่ yt-dlp ใช้ได้
-        with open(cookies_file, 'w', encoding='utf-8') as f:
-            for cookie in all_cookies:
-                # ตรวจสอบว่ามีข้อมูลที่จำเป็นทั้งหมด
-                if hasattr(cookie, 'name') and hasattr(cookie, 'value') and hasattr(cookie, 'domain'):
-                    f.write(f"{cookie.domain}\tTRUE\t/\tFALSE\t{int(cookie.expires) if hasattr(cookie, 'expires') and cookie.expires else 0}\t{cookie.name}\t{cookie.value}\n")
-        
-        logger.info(f"สร้างไฟล์คุกกี้ชั่วคราวเรียบร้อย ({len(all_cookies)} คุกกี้)")
-        return cookies_file
-    except Exception as e:
-        logger.error(f"เกิดข้อผิดพลาดในการดึงคุกกี้: {str(e)}")
-        return None
-
 def download_video(url, output_format='mp4', output_dir='downloads'):
     """
-    ดาวน์โหลดวิดีโอหรือพลายลิสต์จาก YouTube และแหล่งอื่นๆ โดยใช้คุกกี้จากเบราว์เซอร์
+    ดาวน์โหลดวิดีโอหรือพลายลิสต์จาก YouTube และแหล่งอื่นๆ
     
     Args:
         url (str): URL ของวิดีโอหรือพลายลิสต์
@@ -75,26 +36,43 @@ def download_video(url, output_format='mp4', output_dir='downloads'):
     """
     create_folder(output_dir)
     
-    # ดึงคุกกี้จากเบราว์เซอร์อัตโนมัติ
-    try:
-        # ติดตั้งแพ็คเกจที่จำเป็น (ถ้ายังไม่มี)
-        try:
-            import browser_cookie3
-        except ImportError:
-            logger.info("กำลังติดตั้งแพ็คเกจ browser-cookie3")
-            import subprocess
-            subprocess.call(['pip', 'install', 'browser-cookie3'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            import browser_cookie3
-        
-        cookies_path = get_browser_cookies()
-    except Exception as e:
-        logger.error(f"ไม่สามารถดึงคุกกี้จากเบราว์เซอร์: {str(e)}")
-        cookies_path = None
-    
     # กำหนดออปชั่นสำหรับ yt-dlp
     ydl_opts = {
-        'quiet': True,  # ไม่แสดงข้อความเยอะเกินไป เพื่อให้เหมาะกับการใช้งานเป็น module
-        'no_warnings': True,
+        'quiet': False,  # เปิดการแสดงข้อความเพื่อช่วยในการ debug
+        'no_warnings': False,
+        'verbose': True,  # เพิ่มการแสดงข้อมูลโดยละเอียด (สำหรับ debug)
+        
+        # ตัวเลือกที่ช่วยหลีกเลี่ยงการถูกตรวจจับว่าเป็นบอท
+        'extractor_retries': 3,  # พยายามดึงข้อมูลหลายครั้ง
+        'fragment_retries': 10,   # พยายามดาวน์โหลด fragment หลายครั้ง
+        'retry_sleep_functions': {'extractor': lambda n: 5 * (n+1)},  # รอระหว่างการลองใหม่
+        'sleep_interval': 5,      # รอระหว่างการดาวน์โหลดแต่ละรายการ
+        
+        # ตัวเลือกสำหรับการแก้ไขปัญหา geo-restriction และ age verification
+        'geo_verification_proxy': '',  # ทิ้งว่างไว้ หรือใส่ proxy ถ้ามี
+        'geo_bypass': True,
+        'age_limit': 21,          # ตั้งค่าอายุเพื่อหลีกเลี่ยงข้อจำกัด
+        
+        # ตัวเลือกเพิ่มเติมสำหรับการป้องกันการจำกัด
+        'sleep_interval_requests': 1,  # รอระหว่าง HTTP requests
+        'max_sleep_interval': 5,
+        
+        # ใช้ user-agent ที่คล้ายเบราว์เซอร์ทั่วไป
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+        }
     }
     
     # กำหนดรูปแบบไฟล์ตามที่ผู้ใช้ต้องการ
@@ -110,21 +88,39 @@ def download_video(url, output_format='mp4', output_dir='downloads'):
         })
     else:
         ydl_opts.update({
-            'format': 'best',
+            'format': 'best[ext=mp4]/best',  # เน้นดาวน์โหลด mp4 หากมี
             'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
         })
     
     # เพิ่มออปชั่นสำหรับ Windows
     ydl_opts['windowsfilenames'] = True
     
-    # เพิ่ม cookies ถ้าดึงมาได้
-    if cookies_path:
-        ydl_opts['cookiefile'] = cookies_path
-    
     try:
+        # ลอง download โดยใช้ค่าเริ่มต้น
         with YoutubeDL(ydl_opts) as ydl:
             logger.info(f"เริ่มดาวน์โหลด {url}")
-            result = ydl.extract_info(url, download=True)
+            try:
+                result = ydl.extract_info(url, download=True)
+            except Exception as e:
+                # ถ้าเกิด error เกี่ยวกับการยืนยันตัวตน
+                if "Sign in to confirm" in str(e) or "Please sign in" in str(e) or "bot" in str(e).lower():
+                    logger.warning("ถูกตรวจพบว่าเป็น bot, ลองใช้ตัวเลือกเพิ่มเติม...")
+                    
+                    # เพิ่มตัวเลือกเพื่อพยายามหลีกเลี่ยงการตรวจจับ
+                    ydl_opts.update({
+                        'skip_download': False,
+                        'force_generic_extractor': False,
+                        'extract_flat': False,
+                        'referer': 'https://www.google.com/',
+                        'source_address': '0.0.0.0',  # ใช้ IP address ใดก็ได้สำหรับ source
+                    })
+                    
+                    # ลองอีกครั้งด้วยตัวเลือกใหม่
+                    with YoutubeDL(ydl_opts) as ydl2:
+                        result = ydl2.extract_info(url, download=True)
+                else:
+                    # ถ้าเป็น error ประเภทอื่น ให้ส่งต่อไป
+                    raise
             
             # คืนค่าที่อยู่ของไฟล์ที่ดาวน์โหลด
             if 'entries' in result:  # กรณีเป็น playlist
@@ -134,6 +130,14 @@ def download_video(url, output_format='mp4', output_dir='downloads'):
                     file_path = os.path.join(output_dir, f"{sanitize_filename(video_info['title'])}.mp3")
                 else:
                     file_path = os.path.splitext(ydl.prepare_filename(video_info))[0] + f".{output_format}"
+                
+                # ตรวจสอบว่าไฟล์มีอยู่จริง
+                if not os.path.exists(file_path):
+                    # บางครั้ง extension อาจจะไม่ตรงกับที่ระบุ ลอง .mp4
+                    potential_file = os.path.splitext(file_path)[0] + ".mp4"
+                    if os.path.exists(potential_file):
+                        file_path = potential_file
+                
                 logger.info(f"ดาวน์โหลดเสร็จสิ้น: {file_path}")
                 return file_path
             else:  # กรณีเป็นวิดีโอเดี่ยว
@@ -141,20 +145,20 @@ def download_video(url, output_format='mp4', output_dir='downloads'):
                     file_path = os.path.join(output_dir, f"{sanitize_filename(result['title'])}.mp3")
                 else:
                     file_path = os.path.splitext(ydl.prepare_filename(result))[0] + f".{output_format}"
+                
+                # ตรวจสอบว่าไฟล์มีอยู่จริง
+                if not os.path.exists(file_path):
+                    # บางครั้ง extension อาจจะไม่ตรงกับที่ระบุ ลอง .mp4
+                    potential_file = os.path.splitext(file_path)[0] + ".mp4"
+                    if os.path.exists(potential_file):
+                        file_path = potential_file
+                
                 logger.info(f"ดาวน์โหลดเสร็จสิ้น: {file_path}")
                 return file_path
     except Exception as e:
         error_msg = f"ไม่สามารถดาวน์โหลดวิดีโอ: {str(e)}"
         logger.error(error_msg)
         raise RuntimeError(error_msg)
-    finally:
-        # ลบไฟล์คุกกี้ชั่วคราวหลังจากใช้งานเสร็จ
-        if cookies_path and os.path.exists(cookies_path):
-            try:
-                os.remove(cookies_path)
-                logger.debug("ลบไฟล์คุกกี้ชั่วคราวเรียบร้อย")
-            except Exception as e:
-                logger.debug(f"ไม่สามารถลบไฟล์คุกกี้ชั่วคราว: {str(e)}")
 
 # เพิ่มโค้ดสำหรับการทดสอบเมื่อรันไฟล์โดยตรง
 if __name__ == '__main__':
@@ -162,8 +166,6 @@ if __name__ == '__main__':
     url = input("Enter YouTube URL: ")
     output_format = input("Enter format (mp3/mp4): ").strip().lower()
     output_dir = input("Enter output folder name: ").strip() or "downloads"
-    
-    print("กำลังดึงคุกกี้จากเบราว์เซอร์...")
     
     try:
         file_path = download_video(url, output_format, output_dir)
