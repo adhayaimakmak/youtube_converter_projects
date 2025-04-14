@@ -33,7 +33,7 @@ def download_video(url, output_format='mp4', output_dir='downloads', cookies_pat
 
     # 🔐 ถ้ามี cookies.txt ให้เพิ่มเข้าไป
     if cookies_path is None:
-        cookies_path = os.environ.get("COOKIES_PATH", "cookies/cookies.txt")
+          cookies_path = os.environ.get("COOKIES_PATH", "/etc/secrets/cookies") # แก้ไขตำแหน่งไฟล์ cookies
 
     try:
         with YoutubeDL(ydl_opts) as ydl:
