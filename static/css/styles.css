@@ -59,7 +59,7 @@ button:hover {
     font-weight: bold;
 }
 
-.download-link:hover, .back-link:hover {
+download-link:hover, .back-link:hover {
     text-decoration: underline;
 }
 #spinner {
@@ -80,4 +80,22 @@ button:hover {
 @keyframes spin {
     0% { transform: translate(-50%, -50%) rotate(0deg); }
     100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+#progress-container {
+    width: 100%;
+    background-color: #ddd;
+    border-radius: 4px;
+    margin-top: 20px;
+    display: none; /* ซ่อนไว้ก่อน */
+}
+
+#progress-bar {
+    width: 0%;
+    height: 30px;
+    background-color: #8733d1;
+    text-align: center;
+    line-height: 30px;
+    color: white;
+    border-radius: 4px;
 }
