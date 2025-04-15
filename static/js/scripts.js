@@ -1,20 +1,36 @@
-// รอให้หน้าเว็บโหลดเสร็จ
 document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('downloadForm');      // ฟอร์มหลัก
-    const result = document.getElementById('result');           // กล่องแสดงผล
-    const spinner = document.getElementById('spinner');         // ตัวหมุนโหลด (ถ้ามี)
+    const form = document.getElementById('downloadForm');
+    const result = document.getElementById('result');
+    const spinner = document.getElementById('spinner');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
 
     form.addEventListener('submit', (e) => {
-        e.preventDefault(); // ป้องกันการ submit แบบ default
+        e.preventDefault();
 
-        result.innerHTML = '';               // ล้างข้อความเดิม
-        spinner.style.display = 'block';     // แสดง spinner
+        result.innerHTML = '';
+        spinner.style.display = 'block';
+        progressContainer.style.display = 'block'; // แสดงแถบความคืบหน้า
 
-        const formData = new FormData(form);             // เก็บค่าจากฟอร์ม
-        const queryString = new URLSearchParams(formData).toString();  // แปลงเป็น query string
+        const formData = new FormData(form);
+        const queryString = new URLSearchParams(formData).toString();
 
-        // ใช้ window.location.href เพื่อให้ browser เริ่มดาวน์โหลดทันที
         window.location.href = `/download?${queryString}`;
+
+        // จำลองการอัปเดตแถบความคืบหน้า (แทนที่ด้วยการอัปเดตจริงถ้ามี)
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            progressBar.style.width = progress + '%';
+            progressBar.textContent = progress + '%';
+
+            if (progress >= 100) {
+                clearInterval(interval);
+                spinner.style.display = 'none';
+                result.innerHTML = '✅ ดาวน์โหลดเสร็จสมบูรณ์!';
+                progressContainer.style.display = 'none'; // ซ่อนแถบเมื่อโหลดเสร็จ
+            }
+        }, 1000); // อัปเดตทุก 1 วินาที
 
         // ปิด spinner หลัง 2 วินาที (พอให้ผู้ใช้เห็นว่าเริ่มโหลดแล้ว)
         setTimeout(() => {
