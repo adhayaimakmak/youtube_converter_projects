@@ -12,17 +12,19 @@
         <form id="downloadForm" action="/download" method="POST">
             <label for="url">YouTube URL:</label>
             <input type="text" id="url" name="url" placeholder="Enter YouTube URL" required>
-            
+
             <label for="format">Select Format:</label>
             <select id="format" name="format">
                 <option value="mp4">MP4</option>
                 <option value="mp3">MP3</option>
             </select>
-            
+
             <button type="submit">Convert</button>
         </form>
         <div id="result"></div>
         <div id="spinner"></div>
+        <div id="progress-container">  <div id="progress-bar"></div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
