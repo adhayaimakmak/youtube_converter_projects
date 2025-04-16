@@ -8,6 +8,7 @@ import json
 # ตั้งค่า logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+cookies_path = os.environ.get("COOKIES_PATH")
 
 def create_folder(folder_name):
     if not os.path.exists(folder_name):
@@ -38,6 +39,7 @@ def download_video(url, output_format='mp4', output_dir='downloads'):
     
     # กำหนดออปชั่นสำหรับ yt-dlp
     ydl_opts = {
+         "cookies": cookies_path,
         'quiet': False,  # เปิดการแสดงข้อความเพื่อช่วยในการ debug
         'no_warnings': False,
         'verbose': True,  # เพิ่มการแสดงข้อมูลโดยละเอียด (สำหรับ debug)
